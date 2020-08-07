@@ -43,6 +43,7 @@ app.post('/registerUser', (req, res) => {
         body: 'This is your very first entry that you get to have!',
         lastEdit: new Date(),
         date: new Date(),
+        selectedTags: [],
         id:'0'
       }).then(thirdRes => {
         let myjson = JSON.stringify({res: 'success', user: data.uid});
@@ -86,7 +87,6 @@ app.get('/allJournals', (req, res) => {
 app.get('/journalById', (req,res) => {
   db.collection(`users/${req.query.uid}/journals`).doc(req.query.id).get()
     .then(data => {
-      console.log(data);
       let giveBack = {
         docId: data.id,
         ...data.data()
@@ -112,7 +112,8 @@ app.get('/entriesById', (req, res) => {
           id: doc.data().id,
           title: doc.data().title,
           date: doc.data().date.toDate(),
-          lastEdit: doc.data().lastEdit.toDate()
+          lastEdit: doc.data().lastEdit.toDate(),
+          selectedTags: doc.data().selectedTags
         });
       });
       res.send(JSON.stringify(entries));
@@ -138,7 +139,39 @@ app.get('/tags', (req, res) => {
       res.send(JSON.stringify([{err: err}]));
       res.end();
     });
-})
+});
+
+app.get('/entryById', (req, res) => {
+  db.collection(`users/${req.query.uid}/journals/${req.query.journalId}/entries`).doc(req.query.entryId).get()
+    .then(doc => {
+      let giveBack = {
+        docId: doc.id,
+        body: doc.data().body,
+        id: doc.data().id,
+        title: doc.data().title,
+        date: doc.data().date.toDate(),
+        lastEdit: doc.data().lastEdit.toDate(),
+        selectedTags: doc.data().selectedTags
+      };
+      res.send(JSON.stringify(giveBack));
+      res.end();
+    })
+    .catch(err => {
+      res.send(JSON.stringify({err: err}));
+      res.end();
+    }); 
+});
+
+app.get('/journalTitle', (req, res) => {
+  db.collection(`users/${req.query.uid}/journals`).doc(req.query.id).get()
+    .then(journal => {
+      res.send(JSON.stringify({title: journal.data().title}));
+      res.end();
+    })
+    .catch(err => {
+      res.send(JSON.stringify({err: err}));
+    });
+});
 
 
 
