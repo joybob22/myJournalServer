@@ -40,11 +40,10 @@ app.post('/registerUser', (req, res) => {
       });
       db.collection(`users/${data.uid}/journals/${secondRes.id}/entries`).add({
         title: 'Your First Entry',
-        body: 'This is your very first entry that you get to have!',
+        body: 'This is your very first entry!',
         lastEdit: new Date(),
         date: new Date(),
-        selectedTags: [],
-        id:'0'
+        selectedTags: []
       }).then(thirdRes => {
         let myjson = JSON.stringify({res: 'success', user: data.uid});
         res.send(myjson);
@@ -120,6 +119,7 @@ app.get('/entriesById', (req, res) => {
       res.end();
     })
     .catch(err => {
+      console.log(err);
       res.send(JSON.stringify([{err: err}]));
       res.end();
     })
@@ -171,6 +171,140 @@ app.get('/journalTitle', (req, res) => {
     .catch(err => {
       res.send(JSON.stringify({err: err}));
     });
+});
+
+app.post('/updateTags', (req,res) => {
+  db.collection(`users/${req.body.uid}/userInfo`).get()
+    .then(collection => {
+      let docId;
+      collection.forEach(doc => {
+        docId = doc.id;
+      });
+      db.collection(`users/${req.body.uid}/userInfo`).doc(docId).update({tags: req.body.tag});
+    })
+  res.end();
+});
+
+app.post('/updateJournal', (req,res) => {
+  db.collection(`users/${req.body.uid}/journals`).doc(req.body.journal.docId).update(req.body.journal);
+  res.end();
+});
+
+app.post('/createNewJournal', (req, res) => {
+  db.collection(`users/${req.body.uid}/journals`).add(req.body.journal)
+    .then(data => {
+      res.send(JSON.stringify({journalId: data.id}));
+      res.end();
+    })
+    .catch(err => {
+      res.send(JSON.stringify({err: err}));
+      res.end();
+    })
+});
+
+app.delete('/deleteJournal', (req, res) => {
+  async function deleteCollection(db, collectionPath, batchSize) {
+    const collectionRef = db.collection(collectionPath);
+    const query = collectionRef.orderBy('__name__').limit(batchSize);
+  
+    return new Promise((resolve, reject) => {
+      deleteQueryBatch(db, query, resolve).catch(reject);
+    });
+  }
+  
+  async function deleteQueryBatch(db, query, resolve) {
+    const snapshot = await query.get();
+  
+    const batchSize = snapshot.size;
+    if (batchSize === 0) {
+      // When there are no documents left, we are done
+      resolve();
+      return;
+    }
+  
+    // Delete documents in a batch
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+  
+    // Recurse on the next process tick, to avoid
+    // exploding the stack.
+    process.nextTick(() => {
+      deleteQueryBatch(db, query, resolve);
+    });
+  }
+
+  deleteCollection(db, `users/${req.query.uid}/journals/${req.query.journalId}/entries`, 10).then(() => {
+    db.collection(`users/${req.query.uid}/journals`).doc(req.query.journalId).delete().then(secondRes => {
+      res.end();
+    })
+    .catch(err => {
+      console.log(err);
+      res.end();
+    })
+  });
+});
+
+app.post('/createEntry', (req, res) => {
+  db.collection(`users/${req.body.uid}/journals/${req.body.journalId}/entries`).add({
+    title: req.body.entryTitle,
+    date: new Date(),
+    body: 'This is the start to your entry!',
+    selectedTags: [],
+    lastEdit: new Date()
+  }).then(data => {
+    res.send(JSON.stringify({id: data.id}));
+    res.end();
+  }).catch(err => {
+    console.log(err);
+    res.send(JSON.stringify({err: err}));
+    res.end();
+  });
+});
+
+app.post('/updateEntry', (req, res) => {
+  db.collection(`users/${req.body.uid}/journals/${req.body.journalId}/entries`).doc(req.body.entryId).update({
+    title: req.body.editedEntry.title,
+    date: new Date(req.body.editedEntry.date),
+    body: req.body.editedEntry.body,
+    selectedTags: req.body.editedEntry.selectedTags,
+    lastEdit: new Date()
+  })
+    .then(data => {
+      db.collection(`users/${req.body.uid}/journals/${req.body.journalId}/entries`).doc(req.body.entryId).get()
+        .then(doc => {
+          res.send(JSON.stringify({
+            docId: doc.id,
+            body: doc.data().body,
+            id: doc.data().id,
+            title: doc.data().title,
+            date: doc.data().date.toDate(),
+            lastEdit: doc.data().lastEdit.toDate(),
+            selectedTags: doc.data().selectedTags
+          }));
+          res.end();
+        }).catch(err => {
+          console.log(err);
+          res.send(JSON.stringify({err: err}));
+          res.end();
+        });
+    }).catch(err => {
+      console.log(err);
+      res.send(JSON.stringify({err: err}));
+      res.end();
+    })
+});
+
+app.post('/updateSelectedTags', (req, res) => {
+  db.collection(`users/${req.body.uid}/journals/${req.body.journalId}/entries`).doc(req.body.entryId).update({selectedTags: req.body.selectedTags}).then(data => {
+    res.end();
+  }).catch(err => {
+    console.log(err);
+    res.send(JSON.stringify({err: err}));
+    res.end();
+  });
 });
 
 
