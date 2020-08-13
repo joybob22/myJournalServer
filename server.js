@@ -101,7 +101,7 @@ app.get('/journalById', (req,res) => {
 });
 
 app.get('/entriesById', (req, res) => {
-  db.collection(`users/${req.query.uid}/journals/${req.query.id}/entries`).get()
+  db.collection(`users/${req.query.uid}/journals/${req.query.id}/entries`).orderBy('lastEdit', 'desc').limit(15).get()
     .then(entriesData => {
       let entries = [];
       entriesData.forEach(doc => {
@@ -124,6 +124,39 @@ app.get('/entriesById', (req, res) => {
       res.end();
     })
 });
+
+app.get('/entriesFromLastId', (req, res) => {
+  db.collection(`users/${req.query.uid}/journals/${req.query.id}/entries`).doc(req.query.entryId).get()
+    .then(snapshot => {
+      db.collection(`users/${req.query.uid}/journals/${req.query.id}/entries`).orderBy('lastEdit', 'desc').startAfter(snapshot).limit(15).get()
+        .then(entriesData => {
+          let entries = [];
+          entriesData.forEach(doc => {
+            entries.push({
+              docId: doc.id,
+              body: doc.data().body,
+              id: doc.data().id,
+              title: doc.data().title,
+              date: doc.data().date.toDate(),
+              lastEdit: doc.data().lastEdit.toDate(),
+              selectedTags: doc.data().selectedTags
+            });
+          });
+          res.send(JSON.stringify(entries));
+          res.end();
+        })
+        .catch(err => {
+          console.log(err);
+          res.send(JSON.stringify([{err: err}]));
+          res.end();
+        })
+    })
+    .catch(err => {
+      console.log(err);
+      res.send(JSON.stringify([{err: err}]));
+      res.end();
+    })
+})
 
 app.get('/tags', (req, res) => {
   db.collection(`users/${req.query.uid}/userInfo`).get()
