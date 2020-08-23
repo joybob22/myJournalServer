@@ -7,8 +7,8 @@ var AWS = require('aws-sdk');
 const admin = require('firebase-admin');
 const serviceAccount = require('./myjournal-7f5cc-firebase-adminsdk-i8cgd-f9d46cc32d.json');
 require('dotenv').config();
-app.use(bodyParser.json())
-app.use(bodyParser.urlencoded({extended: false}));
+app.use(bodyParser.json({limit: '50mb'}))
+app.use(bodyParser.urlencoded({limit: '50mb', extended: true}));
 app.use(cors());
 
 let port = process.env.PORT || 3000;
@@ -101,7 +101,32 @@ app.get('/journalById', (req,res) => {
 });
 
 app.get('/entriesById', (req, res) => {
-  db.collection(`users/${req.query.uid}/journals/${req.query.id}/entries`).orderBy('lastEdit', 'desc').limit(15).get()
+  db.collection(`users/${req.query.uid}/journals/${req.query.id}/entries`).orderBy(req.query.filterKey, req.query.filterOrder).limit(15).get()
+    .then(entriesData => {
+      let entries = [];
+      entriesData.forEach(doc => {
+        entries.push({
+          docId: doc.id,
+          body: doc.data().body,
+          id: doc.data().id,
+          title: doc.data().title,
+          date: doc.data().date.toDate(),
+          lastEdit: doc.data().lastEdit.toDate(),
+          selectedTags: doc.data().selectedTags
+        });
+      });
+      res.send(JSON.stringify(entries));
+      res.end();
+    })
+    .catch(err => {
+      console.log(err);
+      res.send(JSON.stringify([{err: err}]));
+      res.end();
+    })
+});
+
+app.get('/entriesByTag', (req, res) => {
+  db.collection(`users/${req.query.uid}/journals/${req.query.journalId}/entries`).where('selectedTags', 'array-contains', req.query.filterTags).limit(15).get()
     .then(entriesData => {
       let entries = [];
       entriesData.forEach(doc => {
@@ -128,7 +153,40 @@ app.get('/entriesById', (req, res) => {
 app.get('/entriesFromLastId', (req, res) => {
   db.collection(`users/${req.query.uid}/journals/${req.query.id}/entries`).doc(req.query.entryId).get()
     .then(snapshot => {
-      db.collection(`users/${req.query.uid}/journals/${req.query.id}/entries`).orderBy('lastEdit', 'desc').startAfter(snapshot).limit(15).get()
+      db.collection(`users/${req.query.uid}/journals/${req.query.id}/entries`).orderBy(req.query.filterKey, req.query.filterOrder).startAfter(snapshot).limit(15).get()
+        .then(entriesData => {
+          let entries = [];
+          entriesData.forEach(doc => {
+            entries.push({
+              docId: doc.id,
+              body: doc.data().body,
+              id: doc.data().id,
+              title: doc.data().title,
+              date: doc.data().date.toDate(),
+              lastEdit: doc.data().lastEdit.toDate(),
+              selectedTags: doc.data().selectedTags
+            });
+          });
+          res.send(JSON.stringify(entries));
+          res.end();
+        })
+        .catch(err => {
+          console.log(err);
+          res.send(JSON.stringify([{err: err}]));
+          res.end();
+        })
+    })
+    .catch(err => {
+      console.log(err);
+      res.send(JSON.stringify([{err: err}]));
+      res.end();
+    })
+})
+
+app.get('/entriesFromLastIdByTag', (req, res) => {
+  db.collection(`users/${req.query.uid}/journals/${req.query.journalId}/entries`).doc(req.query.entryId).get()
+    .then(snapshot => {
+      db.collection(`users/${req.query.uid}/journals/${req.query.journalId}/entries`).where('selectedTags', 'array-contains', req.query.selectedTags).startAfter(snapshot).limit(15).get()
         .then(entriesData => {
           let entries = [];
           entriesData.forEach(doc => {
@@ -325,7 +383,7 @@ app.post('/updateEntry', (req, res) => {
         });
     }).catch(err => {
       console.log(err);
-      res.send(JSON.stringify({err: err}));
+      res.status(400).send({message: err.details});
       res.end();
     })
 });
